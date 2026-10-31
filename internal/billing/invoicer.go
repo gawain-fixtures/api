@@ -71,6 +71,8 @@ var (
 	ErrEmptyOrder = errors.New("billing: order has no items")
 	// ErrBadQuantity is returned for an item with a quantity below one.
 	ErrBadQuantity = errors.New("billing: item quantity must be positive")
+	// ErrUnknownCustomer is returned when the order's customer has no billing account.
+	ErrUnknownCustomer = errors.New("billing: unknown customer")
 )
 
 // taxRates are percentages by country code. Unlisted countries pay no tax.
@@ -138,7 +140,11 @@ func (i *Invoicer) Charge(ctx context.Context, order Order) (Invoice, error) {
 	if err != nil {
 		return Invoice{}, err
 	}
-	customer := i.customers.Lookup(order.CustomerID).Profile
+	account := i.customers.Lookup(order.CustomerID)
+	if account == nil {
+		return Invoice{}, fmt.Errorf("%w: %q", ErrUnknownCustomer, order.CustomerID)
+	}
+	customer := account.Profile
 	off := discount(order, sub)
 	owed := tax(customer, sub-off)
 	total := sub - off + owed
